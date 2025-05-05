@@ -16,13 +16,13 @@ const DoctorSignup = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState("");
 
-  const API_BASE_URL = "http://localhost:5000";
+  const API_BASE_URL = "https://192.168.37.51:5000";
 
   // Check if doctor is already logged in
   useEffect(() => {
     const token = localStorage.getItem("token");
     const user = JSON.parse(localStorage.getItem("user"));
-    
+
     if (token && user?.role === "DOCTOR") {
       navigate("/doc"); // Redirect to doctor dashboard
     }

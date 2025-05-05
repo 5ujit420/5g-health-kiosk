@@ -14,25 +14,31 @@ enum UserRole {
 }
 
 enum ConsultationStatus {
-  REQUESTED
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
+  REQUESTED // Call requested but not yet accepted
+  ACCEPTED // Doctor accepted the call
+  IN_PROGRESS // Call is ongoing
+  COMPLETED // Call finished successfully
+  REJECTED // Doctor rejected the call
+  CANCELLED // Patient cancelled before acceptance
+  FAILED // No doctor available
 }
 
 enum NotificationType {
-  VIDEO_CALL
+  VIDEO_CALL_REQUEST
+  VIDEO_CALL_REMINDER
 }
 
 model User {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  role        UserRole
-  name        String
-  phoneNumber String   @unique
-  email       String?  @unique
-  password    String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  role         UserRole
+  name         String
+  phoneNumber  String   @unique
+  email        String?  @unique
+  password     String
+  isActive     Boolean  @default(false) // For soft deletion
+  lastActiveAt DateTime? @default(now()) // Track when user was last active
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   // Patient-specific relations
   healthMeasurements HealthMeasurement[]
@@ -40,50 +46,61 @@ model User {
   prescriptions      Prescription[]      @relation("UserPrescriptions")
   reports            Report[]            @relation("UserReports")
 
-  // Doctor-specific relations
+  // Doctor-specific fields and relations
   doctorProfile       DoctorProfile?    @relation("DoctorProfileRelation")
   doctorConsultations Consultation[]    @relation("DoctorConsultations")
   notifications       Notification[]
   dailyStats          DoctorDailyStat[]
+  Prescription        Prescription[]
+  Report              Report[]
 }
 
 model DoctorProfile {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  userId        String   @unique @db.ObjectId
-  user          User     @relation(fields: [userId], references: [id], name: "DoctorProfileRelation")
-  licenseNumber String   @unique 
-  specialty     String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId          String   @unique @db.ObjectId
+  user            User     @relation(fields: [userId], references: [id], name: "DoctorProfileRelation")
+  licenseNumber   String   @unique
+  specialty       String
+  rating          Float? // Average rating
+  bio             String? // Doctor bio
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model HealthMeasurement {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  patientId   String   @db.ObjectId
-  patient     User     @relation(fields: [patientId], references: [id])
-  height      Float?
-  weight      Float?
-  temperature Float?
-  oximeter    Float?
-  measuredAt  DateTime
-  createdAt   DateTime @default(now())
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  patientId     String   @db.ObjectId
+  patient       User     @relation(fields: [patientId], references: [id])
+  height        Float? // in cm
+  weight        Float? // in kg
+  temperature   Float? // in °C
+  oximeter      Float? // SpO2 percentage
+  heartRate     Int? // BPM
+  bloodPressure String? // e.g., "120/80"
+  notes         String?
+  measuredAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
 }
 
 model Consultation {
-  id            String             @id @default(auto()) @map("_id") @db.ObjectId
-  patientId     String             @db.ObjectId
-  patient       User               @relation(fields: [patientId], references: [id], name: "PatientConsultations")
-  doctorId      String             @db.ObjectId
-  doctor        User               @relation(fields: [doctorId], references: [id], name: "DoctorConsultations")
-  startTime     DateTime
-  endTime       DateTime?
-  status        ConsultationStatus @default(REQUESTED)
-  videoCallId   String?
-  prescriptions Prescription[]
-  reports       Report[]
-  notifications Notification[]
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id              String             @id @default(auto()) @map("_id") @db.ObjectId
+  patientId       String             @db.ObjectId
+  patient         User               @relation(fields: [patientId], references: [id], name: "PatientConsultations")
+  doctorId        String?            @db.ObjectId // Nullable until accepted
+  doctor          User?              @relation(fields: [doctorId], references: [id], name: "DoctorConsultations")
+  requestTime     DateTime           @default(now()) // When patient initiated
+  acceptanceTime  DateTime? // When doctor accepted
+  startTime       DateTime? // When call actually started
+  endTime         DateTime? // When call ended
+  status          ConsultationStatus @default(REQUESTED)
+  videoCallId     String? // ID from your video call provider
+  callDuration    Int? // In seconds
+  rejectionReason String? // If doctor rejected
+  prescriptions   Prescription[]
+  reports         Report[]
+  notifications   Notification[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 }
 
 model Prescription {
@@ -92,8 +109,12 @@ model Prescription {
   consultation   Consultation @relation(fields: [consultationId], references: [id])
   patientId      String       @db.ObjectId
   patient        User         @relation(fields: [patientId], references: [id], name: "UserPrescriptions")
+  doctorId       String       @db.ObjectId
+  doctor         User         @relation(fields: [doctorId], references: [id])
   content        String
+  isFilled       Boolean      @default(false)
   createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
 model Report {
@@ -102,28 +123,39 @@ model Report {
   consultation   Consultation @relation(fields: [consultationId], references: [id])
   patientId      String       @db.ObjectId
   patient        User         @relation(fields: [patientId], references: [id], name: "UserReports")
+  doctorId       String       @db.ObjectId
+  doctor         User         @relation(fields: [doctorId], references: [id])
   diagnosis      String
   notes          String?
+  treatmentPlan  String?
+  followUpDate   DateTime?
   createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 }
 
 model Notification {
   id             String           @id @default(auto()) @map("_id") @db.ObjectId
-  doctorId       String           @db.ObjectId
-  doctor         User             @relation(fields: [doctorId], references: [id])
+  recipientId    String           @db.ObjectId
+  recipient      User             @relation(fields: [recipientId], references: [id])
   consultationId String           @db.ObjectId
   consultation   Consultation     @relation(fields: [consultationId], references: [id])
   type           NotificationType
+  title          String
   content        String?
-  read           Boolean          @default(false)
+  isRead         Boolean          @default(false)
+  actionRequired Boolean          @default(false) // For call accept/reject actions
   createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 }
 
 model DoctorDailyStat {
   id               String   @id @default(auto()) @map("_id") @db.ObjectId
   doctorId         String   @db.ObjectId
   doctor           User     @relation(fields: [doctorId], references: [id])
-  date             DateTime
-  patientsAttended Int
+  date             DateTime @default(now())
+  consultations    Int      @default(0) // Total consultations
+  patientsAttended Int      @default(0) // Unique patients
+  averageDuration  Float? // Average call duration in minutes
+  revenue          Float? // If you have paid consultations
   createdAt        DateTime @default(now())
 }
