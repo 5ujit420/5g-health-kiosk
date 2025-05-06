@@ -5,7 +5,6 @@ const cors = require("cors");
 const { Server } = require("socket.io");
 require("dotenv").config();
 
-
 // Import routes
 const authRoutes = require('./routes/authRoutes');
 const doctorRoutes = require('./routes/doctorRoutes');
@@ -27,7 +26,9 @@ const corsOptions = {
   origin: [
     "https://192.168.37.51:3000",
     "https://192.168.212.51:3000",
-    "https://localhost:3000",
+    "https://192.168.254.51:3000",
+    "https://10.42.0.23:3000",
+    "https://192.168.254.176:3000",
     "http://localhost:3000"
   ],
   credentials: true,
@@ -42,8 +43,10 @@ app.use('/api/auth', authRoutes);
 app.use('/api/doctors', doctorRoutes);
 app.use("/api/getDoctor", require("./routes/getDoctors"));
 app.use("/api/consultations", require("./routes/consultations"));
+app.use("/api/report", require("./routes/healthreportroute"));
 app.use('/api/height', heightRoutes);
 app.use('/api/temp', tempRoutes);
+// app.use('/api/sendReport', require("./report/send_health_report"));
 
 app.get("/", (req, res) => {
   res.send("✅ HTTPS Server is up and running!");
@@ -99,6 +102,28 @@ io.on("connection", (socket) => {
     const targetSocketId = emailToSocketMap.get(userId);
     if (targetSocketId) {
       socket.to(targetSocketId).emit("call-accepted", { ans });
+    } else {
+      console.error(`Target user ${userId} not found for call-accepted`);
+    }
+  });
+
+  // Handle end-call event
+  socket.on("end-call", ({ to }) => {
+    const targetSocketId = emailToSocketMap.get(to);
+    if (targetSocketId) {
+      socket.to(targetSocketId).emit("call-ended");
+      console.log(`📴 Call ended: Notified ${to}`);
+    } else {
+      console.error(`Target user ${to} not found for end-call`);
+    }
+  });
+
+  socket.on("ice-candidate", ({ userId, candidate }) => {
+    const targetSocketId = emailToSocketMap.get(userId);
+    if (targetSocketId) {
+      socket.to(targetSocketId).emit("ice-candidate", { candidate });
+    } else {
+      console.error(`Target user ${userId} not found for ICE candidate`);
     }
   });
 

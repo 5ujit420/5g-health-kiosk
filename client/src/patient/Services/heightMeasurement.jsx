@@ -4,7 +4,7 @@ import lang from "../../assets/Vector.png";
 import userheight from "../../assets/height.png";
 import back from "../../assets/mdi_arrow-back-circle.png";
 
-const API_BASE_URL = "https://192.168.37.51:5000";
+const API_BASE_URL = "https://192.168.254.176:5000";
 
 export default function HeightMeasurement() {
   const navigate = useNavigate();
@@ -27,33 +27,42 @@ export default function HeightMeasurement() {
 
   const handleMeasureClick = async () => {
     setIsMeasuring(true);
-    // setTimeout(() => {
-    //   setIsMeasuring(false);
-    //   setShowResult(true);
-    //   const randomCm = Math.floor(Math.random() * 50) + 150;
-    //   const feet = Math.floor(randomCm / 30.48);
-    //   const inches = Math.round((randomCm % 30.48) / 2.54);
-    //   setHeight({
-    //     cm: randomCm,
-    //     feet: `${feet} feet ${inches} inches`,
-    //   });
-    // }, 3000);
     try {
-      // const response = await fetch(`${API_BASE_URL}/api/height/measure-height`);
-      // const data = await response.json();
-      // if (!response.ok) {
-      //   throw new Error("Unknown error occurred");
-      // }
-      // setHeight({
-      //   cm: data.cm,
-      //   feet: data.feet,
-      // });
-      setHeight({
-        cm: 170,
-        feet: "5 feet 11 inches"
-      })
-      setShowResult(true);
+      const response = await fetch(`${API_BASE_URL}/api/height/measure-height`);
+      const data = await response.json();
       
+      if (!response.ok) {
+        throw new Error(data.error || "Unknown error occurred");
+      }
+
+      // Convert cm to feet and inches
+      const feet = Math.floor(data.cm / 30.48);
+      const inches = Math.round((data.cm % 30.48) / 2.54);
+      
+      setHeight({
+        cm: data.cm,
+        feet: `${feet} feet ${inches} inches`,
+      });
+
+      // Update height in database
+      const token = localStorage.getItem("token");
+      const user = JSON.parse(localStorage.getItem("user"));
+      const updateResponse = await fetch(`${API_BASE_URL}/api/height/update-height`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ height: data.cm, userId: user.id }),
+      });
+
+      const updateData = await updateResponse.json();
+      
+      if (!updateResponse.ok) {
+        throw new Error(updateData.error || "Failed to update height");
+      }
+
+      setShowResult(true);
     } catch (error) {
       console.error("Error measuring height:", error);
       alert("Failed to measure height. Please try again.");

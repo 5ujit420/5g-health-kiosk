@@ -1,17 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faVideo,
@@ -38,13 +26,17 @@ const DoctorDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = React.useState("dashboard");
   const [consultations, setConsultations] = useState([]);
+  const [patients, setPatients] = useState([]);
+  const [acceptedconsultations, setAcceptedConsultations1] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [doctor, setDoctor] = useState(null);
   const [stats, setStats] = useState(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  // const [showHistoryModal, setShowHistoryModal] = useState(false);
   const { socket } = useSocket();
 
-  const API_BASE_URL = "https://192.168.37.51:5000";
+  const API_BASE_URL = "https://192.168.254.176:5000";
 
   // Check authentication on component mount
   useEffect(() => {
@@ -56,8 +48,6 @@ const DoctorDashboard = () => {
       navigate("/");
     }
   }, [navigate]);
-
-  console.log(doctor);
 
   // Fetch consultation requests
   const fetchConsultations = async () => {
@@ -87,14 +77,69 @@ const DoctorDashboard = () => {
     }
   };
 
+  const fetchAcceptedConsultations = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/consultations/getacceptedrequests`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch consultations");
+      }
+
+      const data = await response.json();
+      setAcceptedConsultations1(data.consultations);
+      setLoading(false);
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+
+  const getPatients = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/consultations/distinctpatients`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch consultations");
+      }
+
+      const data = await response.json();
+      setPatients(data.patients);
+      console.log(data.patients);
+      setLoading(false);
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+
   // Initial fetch
   useEffect(() => {
     fetchConsultations();
+    fetchAcceptedConsultations();
+    getPatients();
   }, []);
 
   // Set up polling for real-time updates
   useEffect(() => {
-    const interval = setInterval(fetchConsultations, 5000); // Poll every 5 seconds
+    const interval = setInterval(fetchConsultations, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -107,12 +152,36 @@ const DoctorDashboard = () => {
     { name: "Sat", patients: 3 },
   ];
 
-  const handleAcceptCall = (consultationId) => {
-    navigate(`/consultation/${consultationId}`);
-    socket.emit("join-room", {
-      roomId: consultationId,
-      userId: doctor.id,
-    });
+  const handleAcceptCall = async (consultationId) => {
+    try {
+      console.log(consultationId);
+      const response = await fetch(`${API_BASE_URL}/api/consultations/accept`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // Include auth token if required
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({ consultationId }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Proceed to the consultation room
+        navigate(`/consultation/${consultationId}`);
+
+        socket.emit("join-room", {
+          roomId: consultationId,
+          userId: doctor.id,
+        });
+      } else {
+        alert(data.message || "Failed to accept consultation");
+      }
+    } catch (error) {
+      console.error("Error accepting consultation:", error);
+      alert("An error occurred while accepting the consultation.");
+    }
   };
 
   const handleRejectCall = async (consultationId) => {
@@ -202,7 +271,7 @@ const DoctorDashboard = () => {
             <FontAwesomeIcon icon={faChartLine} className="mr-3 w-5" />
             Dashboard
           </button>
-          <button
+          {/* <button
             className={`w-full text-left p-3 rounded-lg flex items-center transition-all ${
               activeTab === "schedule"
                 ? "bg-blue-100 text-blue-600 font-medium"
@@ -212,7 +281,7 @@ const DoctorDashboard = () => {
           >
             <FontAwesomeIcon icon={faCalendarAlt} className="mr-3 w-5" />
             Schedule
-          </button>
+          </button> */}
           <button
             className={`w-full text-left p-3 rounded-lg flex items-center transition-all ${
               activeTab === "patients"
@@ -299,7 +368,7 @@ const DoctorDashboard = () => {
                   <div>
                     <p className="text-gray-500">Total Patients</p>
                     <h3 className="text-2xl font-bold mt-1">
-                      {stats?.totalPatients || 0}
+                      {patients.length}
                     </h3>
                   </div>
                   <div className="bg-blue-100 p-3 rounded-full">
@@ -322,7 +391,7 @@ const DoctorDashboard = () => {
                   <div>
                     <p className="text-gray-500">Completed Consultations</p>
                     <h3 className="text-2xl font-bold mt-1">
-                      {stats?.completedConsultations || 0}
+                      {acceptedconsultations.length}
                     </h3>
                   </div>
                   <div className="bg-green-100 p-3 rounded-full">
@@ -337,29 +406,6 @@ const DoctorDashboard = () => {
                     +{stats?.consultationsThisMonth || 0}
                   </span>{" "}
                   this month
-                </p>
-              </div>
-
-              <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-purple-500 hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-500">Upcoming Appointments</p>
-                    <h3 className="text-2xl font-bold mt-1">
-                      {stats?.upcomingAppointments || 0}
-                    </h3>
-                  </div>
-                  <div className="bg-purple-100 p-3 rounded-full">
-                    <FontAwesomeIcon
-                      icon={faCalendarAlt}
-                      className="text-purple-600 text-xl"
-                    />
-                  </div>
-                </div>
-                <p className="text-sm text-gray-500 mt-2">
-                  <span className="text-red-500">
-                    {stats?.appointmentsToday || 0}
-                  </span>{" "}
-                  today
                 </p>
               </div>
 
@@ -552,6 +598,277 @@ const DoctorDashboard = () => {
                   </button>
                 </div>
               </div>
+            </div>
+          </>
+        )}
+        {activeTab === "patients" && (
+          <>
+            {/* Patients Section */}
+            <div className="bg-white p-6 rounded-xl shadow-sm mb-8">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-800">
+                  Patient Records
+                </h2>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search patients..."
+                    className="w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                  />
+                  <FontAwesomeIcon
+                    icon={faSearch}
+                    className="absolute left-3 top-3 text-gray-400"
+                  />
+                </div>
+              </div>
+
+              {loading ? (
+                <div className="flex justify-center items-center h-32">
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+                </div>
+              ) : error ? (
+                <div className="text-red-500 p-4 text-center">{error}</div>
+              ) : patients.length === 0 ? (
+                <div className="text-gray-500 p-4 text-center">
+                  No patients found
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {patients.map((patient) => {
+                    // Ensure acceptedConsultations is an array
+                    const patientConsultations = Array.isArray(
+                      patient.acceptedConsultations
+                    )
+                      ? patient.acceptedConsultations
+                      : [];
+
+                    return (
+                      <div
+                        key={patient.id}
+                        className="border border-gray-200 rounded-xl p-5 hover:shadow-md transition-shadow"
+                      >
+                        {/* Patient Card Content */}
+                        <div className="flex items-start mb-4">
+                          <div className="bg-blue-100 p-3 rounded-full mr-4">
+                            <FontAwesomeIcon
+                              icon={faUserCircle}
+                              className="text-blue-600 text-xl"
+                            />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-lg">
+                              {patient.name}
+                            </h3>
+                            <p className="text-gray-500 text-sm">
+                              Last active:{" "}
+                              {patient.lastActiveAt
+                                ? new Date(
+                                    patient.lastActiveAt
+                                  ).toLocaleDateString()
+                                : "Never"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3 mb-4">
+                          <div className="flex items-center">
+                            <FontAwesomeIcon
+                              icon={faIdCard}
+                              className="text-gray-400 mr-3 w-4"
+                            />
+                            <span className="text-gray-700 text-sm">
+                              ID: {patient.id.substring(0, 8)}...
+                            </span>
+                          </div>
+                          <div className="flex items-center">
+                            <FontAwesomeIcon
+                              icon={faEnvelope}
+                              className="text-gray-400 mr-3 w-4"
+                            />
+                            <span className="text-gray-700 text-sm">
+                              {patient.email}
+                            </span>
+                          </div>
+                          <div className="flex items-center">
+                            <FontAwesomeIcon
+                              icon={faPhone}
+                              className="text-gray-400 mr-3 w-4"
+                            />
+                            <span className="text-gray-700 text-sm">
+                              {patient.phoneNumber}
+                            </span>
+                          </div>
+                          {patient.healthMeasurements?.length > 0 && (
+                            <div className="flex items-center">
+                              <FontAwesomeIcon
+                                icon={faChartLine}
+                                className="text-gray-400 mr-3 w-4"
+                              />
+                              <span className="text-gray-700 text-sm">
+                                Last recorded:{" "}
+                                {new Date(
+                                  patient.healthMeasurements[0].measuredAt
+                                ).toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {patient.healthMeasurements?.length > 0 && (
+                          <div className="bg-gray-50 p-3 rounded-lg mb-4">
+                            <h4 className="font-medium text-sm mb-2 text-gray-700">
+                              Health Metrics
+                            </h4>
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="text-sm">
+                                <span className="text-gray-500">Height:</span>{" "}
+                                <span className="font-medium">
+                                  {patient.healthMeasurements[0].height ||
+                                    "N/A"}{" "}
+                                  cm
+                                </span>
+                              </div>
+                              <div className="text-sm">
+                                <span className="text-gray-500">Weight:</span>{" "}
+                                <span className="font-medium">
+                                  {patient.healthMeasurements[0].weight ||
+                                    "N/A"}{" "}
+                                  kg
+                                </span>
+                              </div>
+                              <div className="text-sm">
+                                <span className="text-gray-500">
+                                  Heart Rate:
+                                </span>{" "}
+                                <span className="font-medium">
+                                  {patient.healthMeasurements[0].heartRate ||
+                                    "N/A"}{" "}
+                                  bpm
+                                </span>
+                              </div>
+                              <div className="text-sm">
+                                <span className="text-gray-500">BP:</span>{" "}
+                                <span className="font-medium">
+                                  {patient.healthMeasurements[0]
+                                    .bloodPressure || "N/A"}
+                                </span>
+                              </div>
+                              <div className="text-sm">
+                                <span className="text-gray-500">Temp:</span>{" "}
+                                <span className="font-medium">
+                                  {patient.healthMeasurements[0].temperature ||
+                                    "N/A"}{" "}
+                                  °C
+                                </span>
+                              </div>
+                              <div className="text-sm">
+                                <span className="text-gray-500">Oxygen:</span>{" "}
+                                <span className="font-medium">
+                                  {patient.healthMeasurements[0].oximeter ||
+                                    "N/A"}
+                                  %
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-2">
+                          {/* <button
+                            className="w-full bg-blue-50 text-blue-600 py-2 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                            onClick={() => setShowHistoryModal(true)}
+                          >
+                            View History ({patientConsultations.length})
+                          </button> */}
+                        </div>
+
+                        {/* History Modal */}
+                        {showHistoryModal && (
+                          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                            <div className="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+                              <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xl font-bold">
+                                  Consultation History for {patient.name}
+                                </h3>
+                                <button
+                                  onClick={() => setShowHistoryModal(false)}
+                                  className="text-gray-500 hover:text-gray-700"
+                                >
+                                  <FontAwesomeIcon icon={faTimesCircle} />
+                                </button>
+                              </div>
+
+                              {patientConsultations.length === 0 ? (
+                                <div className="text-gray-500 text-center py-8">
+                                  No consultation history found
+                                </div>
+                              ) : (
+                                <div className="space-y-4">
+                                  {patientConsultations.map((consultation) => (
+                                    <div
+                                      key={consultation.id}
+                                      className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50"
+                                    >
+                                      <div className="flex justify-between items-start">
+                                        <div>
+                                          <h4 className="font-medium">
+                                            Consultation on{" "}
+                                            {new Date(
+                                              consultation.createdAt
+                                            ).toLocaleDateString()}
+                                          </h4>
+                                          <div className="flex items-center text-sm text-gray-500 mt-1">
+                                            <FontAwesomeIcon
+                                              icon={faClock}
+                                              className="mr-2"
+                                            />
+                                            Requested at:{" "}
+                                            {new Date(
+                                              consultation.requestTime
+                                            ).toLocaleString()}
+                                          </div>
+                                          {consultation.acceptanceTime && (
+                                            <div className="text-sm text-gray-500 mt-1">
+                                              Accepted at:{" "}
+                                              {new Date(
+                                                consultation.acceptanceTime
+                                              ).toLocaleString()}
+                                            </div>
+                                          )}
+                                        </div>
+                                        <span
+                                          className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                            consultation.status === "ACCEPTED"
+                                              ? "bg-green-100 text-green-800"
+                                              : "bg-blue-100 text-blue-800"
+                                          }`}
+                                        >
+                                          {consultation.status}
+                                        </span>
+                                      </div>
+                                      {consultation.callDuration && (
+                                        <div className="mt-2 text-sm">
+                                          <span className="font-medium">
+                                            Duration:
+                                          </span>{" "}
+                                          {Math.floor(
+                                            consultation.callDuration / 60
+                                          )}
+                                          m {consultation.callDuration % 60}s
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </>
         )}

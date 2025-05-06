@@ -3,6 +3,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useSocket } from "../providers/Socket";
 import { usePeer } from "../providers/Peer";
 
+const token = localStorage.getItem("token");
+const user = JSON.parse(localStorage.getItem("user"));
+const API_BASE_URL = "https://192.168.37.51:5000";
+
 export default function ConsultationRoom() {
   const { consultationId } = useParams();
   const { socket } = useSocket();
@@ -17,15 +21,80 @@ export default function ConsultationRoom() {
   const [myStream, setMyStream] = useState(null);
   const [remoteuserId, setRemoteUserId] = useState();
   const [isCallActive, setIsCallActive] = useState(false);
+  const [isSendingReport, setIsSendingReport] = useState(false);
+  const [reportStatus, setReportStatus] = useState(null);
+  const [healthMeasurements, sethealthMeasurements] = useState(null);
   const remoteVideoRef = useRef(null);
   const localVideoRef = useRef(null);
   const navigate = useNavigate();
 
-  const healthMeasurements = [
-    { name: "Heart Rate", value: "76 bpm" },
-    { name: "Blood Pressure", value: "120/80 mmHg" },
-    { name: "Temperature", value: "98.6°F" },
-  ];
+  // const healthMeasurements = [
+  //   { name: "Heart Rate", value: "76 bpm" },
+  //   { name: "Blood Pressure", value: "120/80 mmHg" },
+  //   { name: "Temperature", value: "98.6°F" },
+  // ];
+
+  const handleSendReport = async () => {
+    setIsSendingReport(true);
+    setReportStatus(null);
+
+    try {
+      // Prepare health data (map your healthMeasurements to the required format)
+      // const healthData = {
+      //   patientName: user?.name || "Alex Johnson", // Use user data from localStorage
+      //   bloodPressureSys: 120, // Extract from healthMeasurements or API
+      //   bloodPressureDia: 80,
+      //   temperature: 36.8, // Convert 98.6°F to Celsius if needed
+      //   oximeter: 97, // Add if available
+      //   weight: 72, // Add if available
+      //   height: 170, // Add if available
+      //   doctorName: "Jane Doe", // Replace with actual doctor name
+      //   notes: "Patient should increase water intake and schedule a follow-up in 1 month.",
+      //   recipientNumber: "917083505744", // Replace with actual recipient number
+      // };
+
+      const resp = await fetch(`${API_BASE_URL}/api/report/getHealthReport`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // Include token if authentication is required
+        },
+        body: JSON.stringify({
+          patientId: user.id,
+          doctorId: remoteuserId,
+          consultationId: consultationId,
+        }),
+      });
+
+      const reportres = await resp.json();
+      sethealthMeasurements(reportres);
+
+      // const response = await fetch(`${API_BASE_URL}/api/sendReport`, {
+      //   method: "POST",
+      //   headers: {
+      //     "Content-Type": "application/json",
+      //     Authorization: `Bearer ${token}`, // Include token if authentication is required
+      //   },
+      //   body: JSON.stringify(healthData),
+      // });
+
+      // const result = await response.json();
+
+      if (resp.ok) {
+        setReportStatus({ type: "success", message: reportres.message });
+      } else {
+        setReportStatus({
+          type: "error",
+          message: reportres.error || "Failed to send report",
+        });
+      }
+    } catch (error) {
+      console.error("Error sending health report:", error);
+      setReportStatus({ type: "error", message: "Failed to send report" });
+    } finally {
+      setIsSendingReport(false);
+    }
+  };
 
   const handleUserJoined = useCallback(
     async (data) => {
@@ -54,7 +123,10 @@ export default function ConsultationRoom() {
       }
 
       if (peer.signalingState !== "stable") {
-        console.warn("Skipping incoming call handling. Peer not in stable state:", peer.signalingState);
+        console.warn(
+          "Skipping incoming call handling. Peer not in stable state:",
+          peer.signalingState
+        );
         return;
       }
 
@@ -87,7 +159,10 @@ export default function ConsultationRoom() {
           console.error("❌ Error setting remote answer:", error);
         }
       } else {
-        console.warn("⚠️ Skipping setRemoteAnswer. Current signaling state:", peer.signalingState);
+        console.warn(
+          "⚠️ Skipping setRemoteAnswer. Current signaling state:",
+          peer.signalingState
+        );
       }
     },
     [peer, setRemoteAnswer]
@@ -134,7 +209,15 @@ export default function ConsultationRoom() {
       socket.off("call-accepted", handleCallAccepted);
       socket.off("call-ended");
     };
-  }, [handleUserJoined, socket, handleIncomngCall, handleCallAccepted, peer, myStream, navigate]);
+  }, [
+    handleUserJoined,
+    socket,
+    handleIncomngCall,
+    handleCallAccepted,
+    peer,
+    myStream,
+    navigate,
+  ]);
 
   const getUserMediaStream = useCallback(async () => {
     try {
@@ -204,6 +287,7 @@ export default function ConsultationRoom() {
 
   useEffect(() => {
     getUserMediaStream();
+    handleSendReport();
   }, [getUserMediaStream]);
 
   useEffect(() => {
@@ -266,6 +350,34 @@ export default function ConsultationRoom() {
                 </li>
               ))}
             </ul>
+            {user.role === "DOCTOR" ? (
+              <div className="mt-4">
+                <button
+                  onClick={handleSendReport}
+                  disabled={isSendingReport}
+                  className={`w-full py-2 rounded-lg text-white font-medium transition-all ${
+                    isSendingReport
+                      ? "bg-gray-400 cursor-not-allowed"
+                      : "bg-blue-500 hover:bg-blue-600"
+                  }`}
+                >
+                  {isSendingReport ? "Sending..." : "Send Report"}
+                </button>
+                {reportStatus && (
+                  <div
+                    className={`mt-2 text-sm ${
+                      reportStatus.type === "success"
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {reportStatus.message}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <></>
+            )}
           </div>
 
           {/* Video Section */}
@@ -281,7 +393,7 @@ export default function ConsultationRoom() {
                       className="w-full h-full object-cover"
                     />
                     {remoteuserId && (
-                      <div className="absolute bottom-2 left-2 bg-black marathon-bottom-2 left-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
+                      <div className="absolute bottom-2 left-2 marathon-bottom-2 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-sm">
                         {remoteuserId}
                       </div>
                     )}

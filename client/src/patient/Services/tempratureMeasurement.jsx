@@ -4,7 +4,7 @@ import lang from "../../assets/Vector.png";
 import userTemperature from "../../assets/Group 9.png";
 import back from "../../assets/mdi_arrow-back-circle.png";
 
-const API_BASE_URL = "https://192.168.37.51:5000";
+const API_BASE_URL = "https://192.168.254.176:5000";
 
 export default function TemperatureMeasurement() {
   const navigate = useNavigate();
@@ -60,6 +60,28 @@ export default function TemperatureMeasurement() {
           celsius: data.temperature.celsius,
           fahrenheit: data.temperature.fahrenheit,
         });
+        const token = localStorage.getItem("token");
+        const user = JSON.parse(localStorage.getItem("user"));
+        const updateResponse = await fetch(
+          `${API_BASE_URL}/api/temp/update-temperature`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              temperature: temperature.celsius,
+              userId: user.id,
+            }),
+          }
+        );
+
+        const updateData = await updateResponse.json();
+
+        if (!updateResponse.ok) {
+          throw new Error(updateData.error || "Failed to update height");
+        }
       } else {
         throw new Error("Temperature read failed");
       }

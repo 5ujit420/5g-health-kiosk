@@ -7,7 +7,8 @@ import oximeter from "../assets/Group.png";
 import temp from "../assets/carbon_temperature-feels-like.png";
 import tests from "../assets/fluent-mdl2_test-case.png";
 import doctor from "../assets/fontisto_doctor.png";
-const API_BASE_URL = "https://192.168.37.51:5000";
+
+const API_BASE_URL = "https://192.168.254.176:5000";
 
 export default function Homepage() {
   const navigate = useNavigate();
