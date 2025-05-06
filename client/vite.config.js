@@ -8,9 +8,5 @@ export default defineConfig({
   server: {
     host: "0.0.0.0", // to make it accessible via 192.168.x.x
     port: 3000,
-    https: {
-      key: fs.readFileSync("./certs/key.pem"),
-      cert: fs.readFileSync("./certs/cert.pem"),
-    },
   },
 });

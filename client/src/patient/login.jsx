@@ -12,7 +12,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const API_BASE_URL = "https://192.168.254.176:5000";
+  const API_BASE_URL = "http://localhost:5000";
 
   useEffect(() => {
     const token = localStorage.getItem("token");

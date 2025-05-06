@@ -12,7 +12,7 @@ export default function ConsultationPage() {
   const [error, setError] = useState(null);
   const { socket } = useSocket();
 
-  const API_BASE_URL = "https://192.168.254.176:5000";
+  const API_BASE_URL = "http://localhost:5000";
 
   const token = localStorage.getItem("token");
   const user = JSON.parse(localStorage.getItem("user"));

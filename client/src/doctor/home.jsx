@@ -36,7 +36,7 @@ const DoctorDashboard = () => {
   // const [showHistoryModal, setShowHistoryModal] = useState(false);
   const { socket } = useSocket();
 
-  const API_BASE_URL = "https://192.168.254.176:5000";
+  const API_BASE_URL = "http://localhost:5000";
 
   // Check authentication on component mount
   useEffect(() => {
