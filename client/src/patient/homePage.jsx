@@ -18,9 +18,9 @@ export default function Homepage() {
     const token = localStorage.getItem("token");
     const user = JSON.parse(localStorage.getItem("user"));
 
-    if (!token || user?.role !== "PATIENT") {
-      navigate("/health-kiosk"); // Redirect to login if not authenticated as patient
-    }
+    // if (!token || user?.role !== "PATIENT") {
+    //   navigate("/health-kiosk"); // Redirect to login if not authenticated as patient
+    // }
   }, [navigate]);
 
   const services = [

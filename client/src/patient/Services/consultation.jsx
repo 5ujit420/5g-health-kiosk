@@ -17,10 +17,10 @@ export default function ConsultationPage() {
   const token = localStorage.getItem("token");
   const user = JSON.parse(localStorage.getItem("user"));
   useEffect(() => {
-    if (!token || user?.role !== "PATIENT") {
-      navigate("/");
-      return;
-    }
+    // if (!token || user?.role !== "PATIENT") {
+    //   navigate("/");
+    //   return;
+    // }
 
     const fetchActiveDoctors = async () => {
       try {

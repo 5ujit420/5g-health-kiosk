@@ -11,9 +11,9 @@ export default function ResultsPage() {
     const token = localStorage.getItem("token");
     const user = JSON.parse(localStorage.getItem("user"));
 
-    if (!token || user?.role !== "PATIENT") {
-      navigate("/"); // Redirect to login if not authenticated as patient
-    }
+    // if (!token || user?.role !== "PATIENT") {
+    //   navigate("/"); // Redirect to login if not authenticated as patient
+    // }
   }, [navigate]);
 
   const location = useLocation();

@@ -44,9 +44,9 @@ const DoctorDashboard = () => {
     const user = JSON.parse(localStorage.getItem("user")) || doctor;
     setDoctor(user);
 
-    if (!token || user?.role !== "DOCTOR") {
-      navigate("/");
-    }
+    // if (!token || user?.role !== "DOCTOR") {
+    //   navigate("/");
+    // }
   }, [navigate]);
 
   // Fetch consultation requests
